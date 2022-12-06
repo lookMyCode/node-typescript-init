@@ -1,5 +1,5 @@
 import { analytics } from "./modules/analytics.js";
 
-const message = 'Hello!'
-console.log(message);
+const message: string = 'Hello!'
+console.log(message)
 analytics(message);
