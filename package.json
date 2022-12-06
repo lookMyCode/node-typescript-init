@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "npx nodemon",
     "build": "npx tsc",
-    "start": "npm run build && node dist/main"
+    "start": "npm run build && node dist/main",
+    "lint": "npx eslint ./src",
+    "format": "npx eslint ./src --fix"
   },
   "keywords": [],
   "author": "",
