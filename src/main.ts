@@ -2,6 +2,7 @@ import express, { Application, Request, Response } from "express";
 import * as dotenv from 'dotenv';
 import tunnel, { Config } from 'tunnel-ssh';
 import * as mongoose from 'mongoose';
+import App from "./app/app.js";
 
 
 dotenv.config();
@@ -13,34 +14,47 @@ const {
   SERVER_HOST,
   SERVER_PORT,
   DST_HOST,
-  DST_PORT,
+  DST_MONGO_PORT,
   LOCAL_HOST,
-  LOCAL_PORT,
+  LOCAL_MONGO_PORT,
   IS_SERVER,
   MONGODB_USER,
   MONGODB_PASSWORD,
   MONGODB_DB_NAME,
+  DST_REDIS_PORT,
+  LOCAL_REDIS_PORT,
 } = process.env as {[k: string]: string};
 
 const isServer = IS_SERVER == '1';
-const tunnelConfig: Config = {
+const mongoTunnelConfig: Config = {
   username: SERVER_USERNAME,
   password: SERVER_PASSWORD,
   host: SERVER_HOST,
   port: +SERVER_PORT,
   dstHost: DST_HOST,
-  dstPort: +DST_PORT,
+  dstPort: +DST_MONGO_PORT,
   localHost: LOCAL_HOST,
-  localPort: +LOCAL_PORT,
+  localPort: +LOCAL_MONGO_PORT,
+}
+
+const conFlags = {
+  mongoConnected: false,
+  redisConnected: false,
 }
 
 const app: Application = express();
 
 
 if (isServer) {
-  start();
+  startMongo();
+  startRedis();
 } else {
-  tunnel(tunnelConfig, (e: any, s: any) => {
+  startMongoTunnel();
+  startRedisTunnel();
+}
+
+function startMongoTunnel() {
+  tunnel(mongoTunnelConfig, (e: any, s: any) => {
     if (e) {
       console.error(e);
       return;
@@ -50,13 +64,32 @@ if (isServer) {
     console.log('CONNECTED TO REMOTE SERVER');
     console.log('===============');
 
-    start();
+    startMongo();
   });
 }
 
-function start() {
+function startRedisTunnel() {
+  tunnel({
+    username: SERVER_USERNAME,
+    password: SERVER_PASSWORD,
+    host: SERVER_HOST,
+    port: +SERVER_PORT,
+    dstHost: DST_HOST,
+    dstPort: +DST_REDIS_PORT,
+    localHost: LOCAL_HOST,
+    localPort: +LOCAL_REDIS_PORT
+  }, async (e: any, s: any) => {
+    if (e) {
+      console.log(e);
+    }
+
+    startRedis();
+  });
+}
+
+function startMongo() {
   mongoose.connect(
-    `mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${LOCAL_HOST}:${LOCAL_PORT}/${MONGODB_DB_NAME}`, 
+    `mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${LOCAL_HOST}:${LOCAL_MONGO_PORT}/${MONGODB_DB_NAME}`, 
       {
       keepAlive: true,
       useNewUrlParser: true,
@@ -74,6 +107,7 @@ function start() {
       console.log('CONNECTED TO DATABASE');
       console.log('===============');
 
+      conFlags.mongoConnected = true;
       listen();
     }
   );
@@ -81,8 +115,21 @@ function start() {
   mongoose.set('strictQuery', false);
 }
 
+function startRedis() {
+  console.log('===============');
+  console.log('CONNECTED TO REDIS');
+  console.log('===============');
+
+  conFlags.redisConnected = true;
+  listen();
+}
+
 function listen() {
+  const allFlags = Object.values(conFlags).every(flag => flag);
+  if (!allFlags) return;
+
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    new App();
   });
 }
