@@ -26,6 +26,7 @@ export default class DmTelegramBot {
       this.getUpdates()
         .then(async result => {
           result.forEach(async x => {
+            console.log(x)
             const isNew = await this.checkNewUpdate(x);
             if (!isNew) return;
 
